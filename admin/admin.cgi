@@ -38,6 +38,8 @@ else {
 
 # Parse input
 $selectedOrderNumber = -1;
+$selectApplicant = false;
+$exportCSV = false;
 @inputs = split("&", $input);
 
 foreach $pair (@inputs) {
@@ -49,10 +51,18 @@ foreach $pair (@inputs) {
     if ($key eq 'selectedApplicant') {
         $selectedOrderNumber = $value;
     }
+
+    if ($key eq 'selectApplicant') {
+        $selectApplicant = $value;
+    }
+
+    if ($key eq 'exportCSV') {
+        $exportCSV = $value;
+    }
 }
 
 # --- Print detailed view of a single applicant ---
-if ($selectedOrderNumber != -1) {
+if (($selectedOrderNumber != -1) && $selectApplicant eq "Select Applicant") {
 
 # determine total number of rows.
 
@@ -80,6 +90,8 @@ Content-Type: text/html\n\n
 <center>
 <h2>Transforming Analytical Learning in the Era of Big Data - Attendee Detail View</h2>
 </center>
+<p>
+$selectApplicant, $exportCSV
 <p>
 END
 
@@ -481,6 +493,33 @@ END
 
 }
 
+elsif ($exportCSV eq "Export as CSV") {
+    print "Content-Type: application/octet-stream\n";
+    print "Content-Disposition: attachment; filename=BDSIApplicants.csv\n\n";
+
+    $query = "SELECT * FROM registrations ORDER BY orderNumber ASC;";
+    $sth = $dbh->prepare($query);
+    $sth->execute;
+
+    $csv = Text::CSV->new({binary => 1});
+
+    open $fh, ">:encoding(utf8)", "/tmp/applicants.csv" or die "Failed creating CSV intermediate!";
+    do {
+        @result = $sth->fetchrow_array;
+        $csv->print($fh, $_) for \@result;
+    } while (scalar @result != 0);
+    close $fh;
+
+    open FILE, "</tmp/applicants.csv" or die "Failed opening CSV intermediate!";
+    binmode FILE;
+    local $/ = \10240;
+    while (<FILE>) {
+        print $_;
+    }
+
+    close FILE;
+}
+
 else {
 
 # --- Print list of applicants ---
@@ -507,6 +546,8 @@ Content-Type: text/html\n\n
 <body>
 <center>
 <h2>Transforming Analytical Learning in the Era of Big Data - Attendee Roster</h2>
+<p>
+$selectApplicant, $exportCSV
 <p>
 Total number of applicants is $totalrows. Select an applicant to jump to detail view.
 <p>
@@ -540,7 +581,8 @@ do {
 print <<END;
 </table>
 <p>
-<input name="submit" type="submit" value="Select">
+<input name="selectApplicant" type="submit" value="Select Applicant">
+<input name="exportCSV" type="submit" value="Export as CSV">
 </form>
 </center>
 </body>
